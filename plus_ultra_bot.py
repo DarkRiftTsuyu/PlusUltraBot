@@ -7,6 +7,8 @@ import os
 import random
 from webserver import keep_alive
 
+keep_alive()
+
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 
