@@ -6,13 +6,18 @@ from dotenv import load_dotenv
 import os
 import random
 import json
+import psycopg2
 import time
 from webserver import keep_alive
 
 keep_alive()
 
 load_dotenv()
+
 token = os.getenv('DISCORD_TOKEN')
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 intents = discord.Intents.default()
@@ -21,17 +26,51 @@ intents.members = True
 
 bot = commands.Bot(command_prefix='/', intents=intents)
 
-DATA_FILE = "userdata.json"
+def load_data():
+    """Load all user data from the database into a dictionary."""
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT user_id, xp, level, coins, oc_name, oc_quirk, inventory FROM user_data;")
+        rows = cursor.fetchall()
 
-if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r") as file:
-        user_data = json.load(file)
-else:
     user_data = {}
+    for user_id, xp, level, coins, oc_name, oc_quirk, inventory_json in rows:
+        user_data[user_id] = {
+            "xp": xp,
+            "level": level,
+            "coins": coins,
+            "oc": {
+                "name": oc_name,
+                "quirk": oc_quirk
+            },
+            "inventory": json.loads(inventory_json) if inventory_json else []
+        }
+    return user_data
 
-def save_data():
-    with open(DATA_FILE, "w") as f:
-        json.dump(user_data, f, indent=4)
+def save_data(user_data):
+    """Save the entire user_data dict into the database."""
+    with conn.cursor() as cursor:
+        for user_id, data in user_data.items():
+            cursor.execute("""
+                INSERT INTO user_data (user_id, xp, level, coins, oc_name, oc_quirk, inventory)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id)
+                DO UPDATE SET
+                    xp = EXCLUDED.xp,
+                    level = EXCLUDED.level,
+                    coins = EXCLUDED.coins,
+                    oc_name = EXCLUDED.oc_name,
+                    oc_quirk = EXCLUDED.oc_quirk,
+                    inventory = EXCLUDED.inventory;
+            """, (
+                str(user_id),
+                data.get("xp", 0),
+                data.get("level", 0),
+                data.get("coins", 0),
+                data.get("oc", {}).get("name", None),
+                data.get("oc", {}).get("quirk", None),
+                json.dumps(data.get("inventory", []))
+            ))
+        conn.commit()
 
 def get_level(xp):
     return xp // 100 + 1
@@ -498,38 +537,51 @@ async def cancel_fight(interaction: discord.Interaction):
 @app_commands.describe(name="Your OC's name", quirk="Your OC's quirk")
 async def create_oc(interaction: discord.Interaction, name: str, quirk: str):
     user_id = str(interaction.user.id)
-    if user_id in user_data:
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT oc_name FROM user_data WHERE user_id = %s;", (user_id,))
+    result = cursor.fetchone()
+
+    if result and result[0] is not None:
         await interaction.response.send_message("You already have an OC! Use /profile to view it.")
+        cursor.close()
         return
 
-    user_data[user_id] = {
-        "xp": 0,
-        "level": 1,
-        "coins": 0,
-        "oc": {
-            "name": name,
-            "quirk": quirk},
-        "inventory": [],
-    }
-    save_data()
+    cursor.execute("""
+        INSERT INTO user_data (user_id, xp, level, coins, oc_name, oc_quirk, inventory)
+        VALUES (%s, 0, 1, 0, %s, %s, '[]')
+        ON CONFLICT (user_id) DO UPDATE SET
+            oc_name = EXCLUDED.oc_name,
+            oc_quirk = EXCLUDED.oc_quirk;
+    """, (user_id, name, quirk))
+    conn.commit()
+    cursor.close()
+
     await interaction.response.send_message(f"OC created! Name: **{name}**, Quirk: **{quirk}**")
+
 
 @bot.tree.command(name="profile", description="Show your hero profile")
 async def profile(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-    if user_id not in user_data:
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT xp, coins, level, oc_name, oc_quirk
+        FROM user_data WHERE user_id = %s;
+    """, (user_id,))
+    result = cursor.fetchone()
+    cursor.close()
+
+    if not result or result[3] is None:
         await interaction.response.send_message("You don't have an OC yet! Use /create_oc to create one.")
         return
 
-    data = user_data[user_id]
-    xp = data["xp"]
-    coins = data["coins"]
+    xp, coins, level_db, oc_name, oc_quirk = result
     level = get_level(xp)
-    oc = data["oc"]
 
     embed = discord.Embed(title=f"{interaction.user.display_name}'s Hero Profile", color=discord.Color.blue())
-    embed.add_field(name="OC Name", value=oc["name"], inline=False)
-    embed.add_field(name="Quirk", value=oc["quirk"], inline=False)
+    embed.add_field(name="OC Name", value=oc_name, inline=False)
+    embed.add_field(name="Quirk", value=oc_quirk, inline=False)
     embed.add_field(name="Level", value=level, inline=True)
     embed.add_field(name="XP", value=xp, inline=True)
     embed.add_field(name="Coins", value=coins, inline=True)
@@ -539,48 +591,79 @@ async def profile(interaction: discord.Interaction):
 @bot.tree.command(name="train", description="Train your hero to gain XP")
 async def train(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-    if user_id not in user_data:
-        await interaction.response.send_message("You don't have an OC yet! Use /create_oc to create one.")
-        return
-    
     now = time.time()
-
+    
     if user_id in cooldowns and now - cooldowns[user_id] < 1800:
         await interaction.response.send_message(f"@{interaction.user} is on cooldown for 30 minutes")
-        return 
-
+        return
+    
     cooldowns[user_id] = now
 
-    gained_xp = random.randint(10, 30)
-    user_data[user_id]["xp"] += gained_xp
-    new_level = get_level(user_data[user_id]["xp"])
+    cursor = conn.cursor()
+    cursor.execute("SELECT xp, level FROM user_data WHERE user_id = %s;", (user_id,))
+    result = cursor.fetchone()
 
-    if new_level > user_data[user_id]["level"]:
-        user_data[user_id]["level"] = new_level
-        save_data()
-        await interaction.response.send_message(f"You trained hard and gained {gained_xp} XP! You leveled up to level {new_level}! Come back in 30 minutes to train again!")
+    if not result:
+        await interaction.response.send_message("You don't have an OC yet! Use /create_oc to create one.")
+        cursor.close()
+        return
+
+    current_xp, current_level = result
+    gained_xp = random.randint(10, 30)
+    new_xp = current_xp + gained_xp
+    new_level = get_level(new_xp)
+
+    if new_level > current_level:
+        cursor.execute("""
+            UPDATE user_data
+            SET xp = %s, level = %s
+            WHERE user_id = %s;
+        """, (new_xp, new_level, user_id))
+        conn.commit()
+        cursor.close()
+        await interaction.response.send_message(
+            f"You trained hard and gained {gained_xp} XP! You leveled up to level {new_level}! Come back in 30 minutes to train again!"
+        )
     else:
-        save_data()
-        await interaction.response.send_message(f"You trained hard and gained {gained_xp} XP! Keep going! Come back in 30 minutes to train again!")
+        cursor.execute("UPDATE user_data SET xp = %s WHERE user_id = %s;", (new_xp, user_id))
+        conn.commit()
+        cursor.close()
+        await interaction.response.send_message(
+            f"You trained hard and gained {gained_xp} XP! Keep going! Come back in 30 minutes to train again!"
+        )
 
 @bot.tree.command(name="leaderboard", description="Show the top 10 users by XP!")
 async def leaderboard(interaction: discord.Interaction):
-    if not user_data:
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT user_id, xp, level, coins
+        FROM user_data
+        ORDER BY xp DESC
+        LIMIT 10;
+    """)
+    top_users = cursor.fetchall()
+    cursor.close()
+
+    if not top_users:
         await interaction.response.send_message("No data yet! Start chatting to gain XP.")
         return
 
-    top_users = sorted(user_data.items(), key=lambda x: x[1]["xp"], reverse=True)[:10]
-
     embed = discord.Embed(title="🏆 **PLUS ULTRA LEADERBOARD** 🏆", color=discord.Color.gold())
-    for i, (user_id, data) in enumerate(top_users, start=1):
-        user = await bot.fetch_user(int(user_id))
+
+    for i, (user_id, xp, level, coins) in enumerate(top_users, start=1):
+        try:
+            user = await bot.fetch_user(int(user_id))
+            name = user.name
+        except:
+            name = f"User ID {user_id}"
         embed.add_field(
-            name=f"#{i} {user.name}",
-            value=f"Level: **{data['level']}** | XP: **{data['xp']}** | Coins: **{data['coins']}**",
+            name=f"#{i} {name}",
+            value=f"Level: **{level}** | XP: **{xp}** | Coins: **{coins}**",
             inline=False
         )
 
     await interaction.response.send_message(embed=embed)
+
 
 @bot.tree.command(name="shop", description="Purchase Collectable items and Boosts for fights!")
 async def shop(interaction: discord.Interaction):
@@ -609,25 +692,57 @@ async def buy(interaction: discord.Interaction, item_id: str):
         return
 
     item = shop_items[item_id]
-    if user_data[user_id]["coins"] < item["price"]:
-        await interaction.response.send_message("❌ You don't have enough coins!", ephemeral=True)
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT coins, inventory FROM user_data WHERE user_id = %s;", (user_id,))
+    result = cursor.fetchone()
+
+    if not result:
+        await interaction.response.send_message("You don't have an OC yet! Use /create_oc to create one.")
+        cursor.close()
         return
 
-    user_data[user_id]["coins"] -= item["price"]
-    user_data[user_id]["inventory"].append(item["name"])
-    save_data()
+    coins, inventory_json = result
+    inventory = json.loads(inventory_json) if inventory_json else []
+
+    if coins < item["price"]:
+        await interaction.response.send_message("❌ You don't have enough coins!")
+        cursor.close()
+        return
+
+    coins -= item["price"]
+    inventory.append(item["name"])
+    inventory_str = json.dumps(inventory)
+
+    cursor.execute("""
+        UPDATE user_data
+        SET coins = %s, inventory = %s
+        WHERE user_id = %s;
+    """, (coins, inventory_str, user_id))
+    conn.commit()
+    cursor.close()
 
     await interaction.response.send_message(f"✅ {interaction.user.mention} bought **{item['name']}** for {item['price']} coins!")
+
 
 @bot.tree.command(name="inventory", description="Open your inventory")
 async def inventory(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
 
-    if user_id not in user_data or not user_data[user_id].get("inventory"):
+    cursor = conn.cursor()
+    cursor.execute("SELECT inventory FROM user_data WHERE user_id = %s;", (user_id,))
+    result = cursor.fetchone()
+    cursor.close()
+
+    if not result or not result[0]:
         await interaction.response.send_message("Your inventory is empty!")
         return
 
-    inventory_list = user_data[user_id]["inventory"]
+    inventory_list = json.loads(result[0])
+
+    if not inventory_list:
+        await interaction.response.send_message("Your inventory is empty!")
+        return
 
     embed = discord.Embed(
         title=f"{interaction.user.display_name}'s Inventory",
@@ -646,20 +761,37 @@ async def on_message(message):
         return
 
     user_id = str(message.author.id)
-
-    if user_id not in user_data:
-        user_data[user_id] = {"xp": 0, "coins": 0, "level": 0, "oc": {}}
-
     xp_gain = random.randint(5, 15)
     coins_gain = random.randint(1, 3)
-    user_data[user_id]["xp"] += xp_gain
-    user_data[user_id]["coins"] += coins_gain
 
-    new_level = get_level(user_data[user_id]["xp"])
-    if new_level > user_data[user_id]["level"]:
-        user_data[user_id]["level"] = new_level
-        await message.channel.send(f"🎉 {message.author.mention} leveled up to **Level {new_level}**! PLUS ULTRA!")
+    cursor = conn.cursor()
+    cursor.execute("SELECT xp, coins, level FROM user_data WHERE user_id = %s;", (user_id,))
+    result = cursor.fetchone()
 
-    save_data()
+    if result:
+        xp, coins, level = result
+        new_xp = xp + xp_gain
+        new_coins = coins + coins_gain
+        new_level = get_level(new_xp)
+
+        cursor.execute("""
+            UPDATE user_data
+            SET xp = %s, coins = %s, level = %s
+            WHERE user_id = %s;
+        """, (new_xp, new_coins, new_level, user_id))
+        conn.commit()
+
+        if new_level > level:
+            await message.channel.send(f"🎉 {message.author.mention} leveled up to **Level {new_level}**! PLUS ULTRA!")
+    else:
+        cursor.execute("""
+            INSERT INTO user_data (user_id, xp, coins, level, oc_name, oc_quirk, inventory)
+            VALUES (%s, %s, %s, %s, NULL, NULL, '[]');
+        """, (user_id, xp_gain, coins_gain, get_level(xp_gain)))
+        conn.commit()
+
+    cursor.close()
+
+    await bot.process_commands(message)
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
