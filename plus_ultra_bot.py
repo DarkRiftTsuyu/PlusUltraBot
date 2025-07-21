@@ -217,15 +217,12 @@ async def fight(interaction: discord.Interaction, opponent: discord.Member):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     
-    characters = ["Deku", "Bakugo"]
+    characters = ["Deku", "Bakugo", "Uravity", "Ingenium", "Red Riot"]
     player1 = interaction.user
     player2 = opponent
     p1_character = random.choice(characters)
-
-    if p1_character == "Deku":
-        p2_character = "Bakugo"
-    else:
-        p2_character = "Deku"
+    characters.remove(p1_character)
+    p2_character = random.choice(characters)
 
     game = {
         "players": {
@@ -285,7 +282,16 @@ async def attack(interaction: discord.Interaction, move: str):
         "howitzer_impact": {"damage": 25, "accuracy": 15},
         "air_force": {"damage": 12, "accuracy": 95},
         "detroit_smash": {"damage": 18, "accuracy": 50},
-        "full_cowling": {"damage": 25, "accuracy": 15}
+        "full_cowling": {"damage": 25, "accuracy": 15},
+        "gunhead_martial_arts": {"damage": 12, "accuracy": 95},
+        "float": {"damage": 18, "accuracy": 50},
+        "meteor_shower": {"damage": 25, "accuracy": 15},
+        "recipro_burst": {"damage": 12, "accuracy": 95},
+        "recipro_extend": {"damage": 18, "accuracy": 50},
+        "recipro_turbo": {"damage": 25, "accuracy": 15},
+        "red_counter": {"damage": 12, "accuracy": 95},
+        "red_gauntlet": {"damage": 18, "accuracy": 50},
+        "unbreakable": {"damage": 25, "accuracy": 15}
     }
 
     """
@@ -301,7 +307,13 @@ async def attack(interaction: discord.Interaction, move: str):
                         "**Bakugo's Moves:**\n"
                         "`explosion`, `dynamight`, `howitzer_impact`\n\n"
                         "**Deku's Moves:**\n"
-                        "`air_force`, `detroit_smash`, `full_cowling`",
+                        "`air_force`, `detroit_smash`, `full_cowling`\n\n"
+                        "**Uravity's Moves:**\n"
+                        "`gunhead_martial_arts`, `float`, `meteor_shower`\n\n"
+                        "**Ingenium's Moves:**\n"
+                        "`recipro_burst`, `recipro_extend`, `recipro_turbo`\n\n"
+                        "**Red Riot's Moves:**\n"
+                        "`red_counter`, `red_counter`, `unbreakable`",
             color=discord.Color.dark_red()
         )
         embed.set_footer(text="Use /attack move_name to attack.")
@@ -317,9 +329,19 @@ async def attack(interaction: discord.Interaction, move: str):
         result = f"MISS! {game['players'][attacker_id]['name']} missed **{move}**!"
 
     if game["players"][target_id]["hp"] <= 0:
-        await interaction.response.send_message(
-            f"{result}\n {game['players'][target_id]['name']} has been defeated! {interaction.user.mention} wins!"
+        embed = discord.Embed(
+            title="🏆 Battle Over!",
+            description=(
+                f"{result}\n\n"
+                f"**{game['players'][target_id]['name']}** has been **defeated!**\n"
+                f"🎉 ** {interaction.user.mention} wins the fight!** 🎉"
+            ),
+            color=discord.Color.gold()
         )
+        embed.set_footer(text="Thanks for playing!")
+        embed.set_image(url="https://tenor.com/view/allmight-toshinori-yagi-yagi-toshinori-peace-anime-gif-6422195")
+
+        await interaction.response.send_message(embed=embed)  
         del games[channel_id]
         return
     
@@ -348,5 +370,39 @@ async def attack(interaction: discord.Interaction, move: str):
     embed.set_footer(text="Use /attack move_name to make your move!")
 
     await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="cancel_fight", description="Cancel the current fight in this channel")
+async def cancel_fight(interaction: discord.Interaction):
+    channel_id = interaction.channel.id
+
+    if channel_id not in games:
+        embed = discord.Embed(
+            title="⚠️ **No Fight Found** ⚠️",
+            description="There is no active fight in this channel to cancel.",
+            color=discord.Color.dark_red()
+        )
+        await interaction.response.send_message(embed=embed)
+        return
+
+    game = games[channel_id]
+
+    if interaction.user.id not in game["players"].keys() and not interaction.user.guild_permissions.manage_guild:
+        embed = discord.Embed(
+            title="❌ **Permission Denied** ❌",
+            description="Only the players in this fight or an admin can cancel it.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+    else:
+        embed = discord.Embed(
+            title="🛑 **Fight Cancelled** 🛑",
+            description=f"The fight in this channel has been **cancelled** by {interaction.user.mention}.",
+            color=discord.Color.orange()
+        )
+        embed.set_footer(text="Use /fight to start a new battle!")
+        await interaction.response.send_message(embed=embed)
+        del games[channel_id]
+
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
