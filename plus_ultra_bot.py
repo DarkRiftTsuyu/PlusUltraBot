@@ -116,6 +116,24 @@ async def help_command(interaction: discord.Interaction):
     )
 
     embed.add_field(
+        name = "/fight",
+        value = 'Challenge someone to a fight!',
+        inline = False
+    )
+
+    embed.add_field(
+        name = "/cancel_fight",
+        value = 'Cancel and on-going fight in that channel',
+        inline = False
+    )
+
+    embed.add_field(
+        name = "/attack",
+        value = 'Attack someone in a fight or use "/attack move:help" to list all moves!',
+        inline = False
+    )
+
+    embed.add_field(
     name = "/symbol_of_peace",
     value = "Displays All Might's iconic speech",
     inline = False
@@ -313,7 +331,7 @@ async def attack(interaction: discord.Interaction, move: str):
                         "**Ingenium's Moves:**\n"
                         "`recipro_burst`, `recipro_extend`, `recipro_turbo`\n\n"
                         "**Red Riot's Moves:**\n"
-                        "`red_counter`, `red_counter`, `unbreakable`",
+                        "`red_counter`, `red_gauntlet`, `unbreakable`",
             color=discord.Color.dark_red()
         )
         embed.set_footer(text="Use /attack move_name to attack.")
