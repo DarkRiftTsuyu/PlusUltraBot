@@ -807,38 +807,45 @@ async def buy(interaction: discord.Interaction, item_id: str):
 
 
 
+import asyncio
+import json
+import discord
+from discord import app_commands
+from discord.ext import commands
+
 @bot.tree.command(name="inventory", description="Open your inventory")
 async def inventory(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=False)
 
     user_id = str(interaction.user.id)
 
-    inventory_list = []
-    try:
+    def fetch_inventory():
         conn = get_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT inventory FROM user_data WHERE user_id = %s;", (user_id,))
-            result = cursor.fetchone()
-            if result and result[0]:
-                inventory_list = json.loads(result[0]) if result[0] else []
-    finally:
-        pool.putconn(conn)
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT inventory FROM user_data WHERE user_id = %s;", (user_id,))
+                result = cursor.fetchone()
+                if result and result[0]:
+                    return json.loads(result[0]) if isinstance(result[0], str) else result[0]
+                return []
+        finally:
+            pool.putconn(conn)
+
+    inventory_list = await asyncio.to_thread(fetch_inventory)
 
     if not inventory_list:
         await interaction.followup.send("Your inventory is empty!")
         return
-
     embed = discord.Embed(
         title=f"{interaction.user.display_name}'s Inventory",
         color=discord.Color.dark_teal()
     )
-
-    for index, item in enumerate(inventory_list, start=1):
-        embed.add_field(name=f"{index}. {item}", value="✅ Owned", inline=False)
-
+    item_text = "\n".join([f"{index}. {item}" for index, item in enumerate(inventory_list, start=1)])
+    embed.add_field(name="Items", value=item_text, inline=False)
     embed.set_footer(text=f"Total items: {len(inventory_list)}")
 
     await interaction.followup.send(embed=embed)
+
 
 
 @bot.event
