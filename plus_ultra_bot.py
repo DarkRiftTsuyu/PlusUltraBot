@@ -95,7 +95,7 @@ shop_items = {
     "2": {"name": "League of Villians Pin", "price": 500, "description": "A collectible LOV pin"},
     "3": {"name": "All Might's Hair", "price": 1000, "description": "EAT THIS!!"},
     "4": {"name": "All Might Funko Pop", "price": 300, "description": "A Funko Pop of the Symbol of Peace"},
-    "5": {"name": "Deku's Notebook", "price": 700, "description": "Izuku idoriya's Hero Notebook"},
+    "5": {"name": "Deku's Notebook", "price": 700, "description": "Izuku Midoriya's Hero Notebook"},
     "6": {"name": "Shigaraki's Hand Replica", "price": 1300, "description": "A creepy hand that sends chills down your spine."},
     "7": {"name": "Nomu DNA Sample", "price": 2500, "description": "For research purposes only... right?"},
     "8": {"name": "Hero Agency Poster", "price": 350, "description": "A signed poster from your favorite hero agency!"},
@@ -471,13 +471,13 @@ async def attack(interaction: discord.Interaction, move: str):
                         "**Todoroki's Moves:**\n"
                         "`half_cold`, `half_hot`, `prominence_burn`\n\n"
                         "**Froppy's Moves:**\n"
-                        "`tongue_whip`, `camouflage`, `frog_frenzy`"
+                        "`tongue_whip`, `camouflage`, `frog_frenzy`\n\n"
                         "**Kaminari's Moves:**\n"
-                        "`shock_discharge`, `lightning_burst`, `indiscriminate_shock`\n"
+                        "`shock_discharge`, `lightning_burst`, `indiscriminate_shock`\n\n"
                         "**Mina's Moves:**\n"
-                        "`acid_spray`, `acid_rain`, `acid_man`"
+                        "`acid_spray`, `acid_rain`, `acid_man`\n\n"
                         "**Jiro's Moves:**\n"
-                        "`earphone_jack`, `sound_wave`, `heartbeat_distortion`",
+                        "`earphone_jack`, `sound_wave`, `heartbeat_distortion`\n\n",
             color=discord.Color.dark_red()
         )
         embed.set_footer(text="Use /attack move_name to attack.")
