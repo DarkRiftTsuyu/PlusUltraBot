@@ -539,11 +539,13 @@ async def create_oc(interaction: discord.Interaction, name: str, quirk: str):
     user_id = str(interaction.user.id)
     cursor = conn.cursor()
 
+    await interaction.response.defer()
+
     cursor.execute("SELECT oc_name FROM user_data WHERE user_id = %s;", (user_id,))
     result = cursor.fetchone()
 
     if result and result[0] is not None:
-        await interaction.response.send_message("You already have an OC! Use /profile to view it.")
+        await interaction.follow_up.send("You already have an OC! Use /profile to view it.")
         cursor.close()
         return
 
@@ -557,7 +559,7 @@ async def create_oc(interaction: discord.Interaction, name: str, quirk: str):
     conn.commit()
     cursor.close()
 
-    await interaction.response.send_message(f"OC created! Name: **{name}**, Quirk: **{quirk}**")
+    await interaction.follow_up.send(f"OC created! Name: **{name}**, Quirk: **{quirk}**")
 
 
 @bot.tree.command(name="profile", description="Show your hero profile")
