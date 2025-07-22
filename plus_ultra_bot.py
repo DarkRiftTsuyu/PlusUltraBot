@@ -96,6 +96,11 @@ shop_items = {
     "3": {"name": "All Might's Hair", "price": 1000, "description": "EAT THIS!!"},
     "4": {"name": "All Might Funko Pop", "price": 300, "description": "A Funko Pop of the Symbol of Peace"},
     "5": {"name": "Deku's Notebook", "price": 700, "description": "Izuku idoriya's Hero Notebook"},
+    "6": {"name": "Shigaraki's Hand Replica", "price": 1300, "description": "A creepy hand that sends chills down your spine."},
+    "7": {"name": "Nomu DNA Sample", "price": 2500, "description": "For research purposes only... right?"},
+    "8": {"name": "Hero Agency Poster", "price": 350, "description": "A signed poster from your favorite hero agency!"},
+    "9": {"name": "Mineta's Grape Hair", "price": 50, "description": "A sticky souvenir from Minoru Mineta."},
+    "10": {"name": "One For All Fragment", "price": 5000, "description": "A fragment of power passed through generations."}
 }
 
 plus_ultra = True
@@ -357,7 +362,7 @@ async def fight(interaction: discord.Interaction, opponent: discord.Member):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     
-    characters = ["Deku", "Bakugo", "Uravity", "Ingenium", "Red Riot"]
+    characters = ["Izuku Midoriya (Deku)", "Katsuki Bakugo (Dynamight)", "Ochaco Uraraka (Uravity)", "Tenya Iida (Ingenium)", "Eijiro Kirishima (Red Riot)", "Shoto Todoroki (Shoto)", "Tsuyu Asui (Froppy)", "Denki Kaminari (Chargebolt)", "Mina Ashido (Pinky)", "Kyoka Jiro (Earphone Jack)"]
     player1 = interaction.user
     player2 = opponent
     p1_character = random.choice(characters)
@@ -393,17 +398,16 @@ async def attack(interaction: discord.Interaction, move: str):
     if channel_id not in games:
         embed = discord.Embed(
             title="⚠️ **No Fight Found** ⚠️",
-            description="There is currently **no fight in progress** in this channel. You can start one by using: /fight @opponent",
+            description="There is currently **no fight in progress** in this channel. You can start one by using: `/fight @opponent`",
             color=discord.Color.dark_red()
         )
         embed.set_footer(text="I'm sorry bro but if there was a fight here, I'm sure you'd know.")
-
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
     game = games[channel_id]
     attacker_id = interaction.user.id
-        
+
     if attacker_id != game["turn"]:
         embed = discord.Embed(
             title="⚠️ **It Is NOT Your Turn** ⚠️",
@@ -414,7 +418,7 @@ async def attack(interaction: discord.Interaction, move: str):
         await interaction.response.send_message(embed=embed)
         return
 
-    target_id = [player_id for player_id in game["players"].keys() if player_id != attacker_id][0]
+    target_id = [pid for pid in game["players"] if pid != attacker_id][0]
 
     moves = {
         "explosion": {"damage": 12, "accuracy": 95},
@@ -431,13 +435,23 @@ async def attack(interaction: discord.Interaction, move: str):
         "recipro_turbo": {"damage": 25, "accuracy": 15},
         "red_counter": {"damage": 12, "accuracy": 95},
         "red_gauntlet": {"damage": 18, "accuracy": 50},
-        "unbreakable": {"damage": 25, "accuracy": 15}
+        "unbreakable": {"damage": 25, "accuracy": 15},
+        "half_cold": {"damage": 12, "accuracy": 95},
+        "half_hot": {"damage": 18, "accuracy": 50},
+        "prominence_burn": {"damage": 25, "accuracy": 15},
+        "tongue_whip": {"damage": 12, "accuracy": 95},
+        "camouflage": {"damage": 18, "accuracy": 55},
+        "frog_frenzy": {"damage": 25, "accuracy": 15},
+        "shock_discharge": {"damage": 12, "accuracy": 95},
+        "lightning_burst": {"damage": 18, "accuracy": 50},
+        "indiscriminate_shock": {"damage": 25, "accuracy": 15},
+        "acid_spray": {"damage": 12, "accuracy": 95},
+        "acid_rain": {"damage": 18, "accuracy": 50},
+        "acid_man": {"damage": 25, "accuracy": 15},
+        "earphone_jack": {"damage": 12, "accuracy": 95},
+        "sound_wave": {"damage": 18, "accuracy": 50},
+        "heartbeat_distortion": {"damage": 25, "accuracy": 15},
     }
-
-    """
-    I've just realised that the moves dictionary mean's that character abilities are not character specific
-    I'll probably fix this at some point but it's late and if no one knows then it doesn't matter so idc rn lol
-    """
 
     move = move.lower()
     if move not in moves:
@@ -453,14 +467,23 @@ async def attack(interaction: discord.Interaction, move: str):
                         "**Ingenium's Moves:**\n"
                         "`recipro_burst`, `recipro_extend`, `recipro_turbo`\n\n"
                         "**Red Riot's Moves:**\n"
-                        "`red_counter`, `red_gauntlet`, `unbreakable`",
+                        "`red_counter`, `red_gauntlet`, `unbreakable`\n\n"
+                        "**Todoroki's Moves:**\n"
+                        "`half_cold`, `half_hot`, `prominence_burn`\n\n"
+                        "**Froppy's Moves:**\n"
+                        "`tongue_whip`, `camouflage`, `frog_frenzy`"
+                        "**Kaminari's Moves:**\n"
+                        "`shock_discharge`, `lightning_burst`, `indiscriminate_shock`\n"
+                        "**Mina's Moves:**\n"
+                        "`acid_spray`, `acid_rain`, `acid_man`"
+                        "**Jiro's Moves:**\n"
+                        "`earphone_jack`, `sound_wave`, `heartbeat_distortion`",
             color=discord.Color.dark_red()
         )
         embed.set_footer(text="Use /attack move_name to attack.")
-
         await interaction.response.send_message(embed=embed)
         return
-    
+
     hit_chance = random.randint(1, 100)
     if hit_chance <= moves[move]["accuracy"]:
         game["players"][target_id]["hp"] -= moves[move]["damage"]
@@ -469,22 +492,38 @@ async def attack(interaction: discord.Interaction, move: str):
         result = f"MISS! {game['players'][attacker_id]['name']} missed **{move}**!"
 
     if game["players"][target_id]["hp"] <= 0:
+        reward_coins = random.randint(1, 100)
+        user_id = str(interaction.user.id)
+
+        try:
+            conn = get_connection()
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE user_data
+                    SET coins = coins + %s
+                    WHERE user_id = %s;
+                """, (reward_coins, user_id))
+            conn.commit()
+        finally:
+            pool.putconn(conn)
+
         embed = discord.Embed(
             title="🏆 Battle Over!",
             description=(
                 f"{result}\n\n"
                 f"**{game['players'][target_id]['name']}** has been **defeated!**\n"
-                f"🎉 ** {interaction.user.mention} wins the fight!** 🎉"
+                f"🎉 **{interaction.user.mention} wins the fight!** 🎉\n\n"
+                f"💰 **You earned {reward_coins} coins!** 💰"
             ),
             color=discord.Color.gold()
         )
         embed.set_footer(text="Thanks for playing!")
         embed.set_image(url="https://tenor.com/view/allmight-toshinori-yagi-yagi-toshinori-peace-anime-gif-6422195")
 
-        await interaction.response.send_message(embed=embed)  
+        await interaction.response.send_message(embed=embed)
         del games[channel_id]
         return
-    
+
     game["turn"] = target_id
     attacker = game['players'][attacker_id]
     target = game['players'][target_id]
@@ -494,7 +533,6 @@ async def attack(interaction: discord.Interaction, move: str):
         description=f"{result}",
         color=discord.Color.dark_teal()
     )
-
     embed.add_field(
         name=f"{attacker['name']}'s HP",
         value=f"{get_health_bar(attacker['hp'])} {attacker['hp']}/100",
@@ -505,11 +543,11 @@ async def attack(interaction: discord.Interaction, move: str):
         value=f"{get_health_bar(target['hp'])} {target['hp']}/100",
         inline=True
     )
-
     embed.add_field(name="Next Turn", value=f"<@{target_id}>", inline=False)
     embed.set_footer(text="Use /attack move_name to make your move!")
 
     await interaction.response.send_message(embed=embed)
+
 
 @bot.tree.command(name="cancel_fight", description="Cancel the current fight in this channel")
 async def cancel_fight(interaction: discord.Interaction):
