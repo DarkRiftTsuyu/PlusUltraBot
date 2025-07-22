@@ -17,7 +17,9 @@ load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+
+def get_connection():
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 intents = discord.Intents.default()
@@ -27,7 +29,7 @@ intents.members = True
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 def load_data():
-    """Load all user data from the database into a dictionary."""
+    conn = get_connection()
     with conn.cursor() as cursor:
         cursor.execute("SELECT user_id, xp, level, coins, oc_name, oc_quirk, inventory FROM user_data;")
         rows = cursor.fetchall()
@@ -47,7 +49,7 @@ def load_data():
     return user_data
 
 def save_data(user_data):
-    """Save the entire user_data dict into the database."""
+    conn = get_connection()
     with conn.cursor() as cursor:
         for user_id, data in user_data.items():
             cursor.execute("""
@@ -537,6 +539,7 @@ async def cancel_fight(interaction: discord.Interaction):
 @app_commands.describe(name="Your OC's name", quirk="Your OC's quirk")
 async def create_oc(interaction: discord.Interaction, name: str, quirk: str):
     user_id = str(interaction.user.id)
+    conn = get_connection()
     cursor = conn.cursor()
 
     await interaction.response.defer()
@@ -565,6 +568,7 @@ async def create_oc(interaction: discord.Interaction, name: str, quirk: str):
 @bot.tree.command(name="profile", description="Show your hero profile")
 async def profile(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -593,6 +597,7 @@ async def profile(interaction: discord.Interaction):
 @bot.tree.command(name="train", description="Train your hero to gain XP")
 async def train(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
+    conn = get_connection()
     now = time.time()
     
     if user_id in cooldowns and now - cooldowns[user_id] < 1800:
@@ -637,6 +642,7 @@ async def train(interaction: discord.Interaction):
 @bot.tree.command(name="leaderboard", description="Show the top 10 users by XP!")
 async def leaderboard(interaction: discord.Interaction):
     cursor = conn.cursor()
+    conn = get_connection()
     cursor.execute("""
         SELECT user_id, xp, level, coins
         FROM user_data
@@ -688,6 +694,7 @@ async def shop(interaction: discord.Interaction):
 @app_commands.describe(item_id="The ID number of the item you want to buy")
 async def buy(interaction: discord.Interaction, item_id: str):
     user_id = str(interaction.user.id)
+    conn = get_connection()
 
     if item_id not in shop_items:
         await interaction.response.send_message("❌ Invalid item ID!", ephemeral=True)
@@ -730,7 +737,7 @@ async def buy(interaction: discord.Interaction, item_id: str):
 @bot.tree.command(name="inventory", description="Open your inventory")
 async def inventory(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT inventory FROM user_data WHERE user_id = %s;", (user_id,))
     result = cursor.fetchone()
@@ -761,7 +768,8 @@ async def inventory(interaction: discord.Interaction):
 async def on_message(message):
     if message.author.bot:
         return
-
+    
+    conn = get_connection()
     user_id = str(message.author.id)
     xp_gain = random.randint(5, 15)
     coins_gain = random.randint(1, 3)
