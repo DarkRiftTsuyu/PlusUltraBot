@@ -46,6 +46,10 @@ def load_data():
             },
             "inventory": json.loads(inventory_json) if inventory_json else []
         }
+
+    cursor.close()
+    conn.close()
+
     return user_data
 
 def save_data(user_data):
@@ -73,6 +77,9 @@ def save_data(user_data):
                 json.dumps(data.get("inventory", []))
             ))
         conn.commit()
+
+    cursor.close()
+    conn.close()
 
 def get_level(xp):
     return xp // 100 + 1
@@ -550,6 +557,7 @@ async def create_oc(interaction: discord.Interaction, name: str, quirk: str):
     if result and result[0] is not None:
         await interaction.follow_up.send("You already have an OC! Use /profile to view it.")
         cursor.close()
+        conn.close()
         return
 
     cursor.execute("""
@@ -561,6 +569,7 @@ async def create_oc(interaction: discord.Interaction, name: str, quirk: str):
     """, (user_id, name, quirk))
     conn.commit()
     cursor.close()
+    conn.close()
 
     await interaction.follow_up.send(f"OC created! Name: **{name}**, Quirk: **{quirk}**")
 
@@ -577,6 +586,7 @@ async def profile(interaction: discord.Interaction):
     """, (user_id,))
     result = cursor.fetchone()
     cursor.close()
+    conn.close()
 
     if not result or result[3] is None:
         await interaction.response.send_message("You don't have an OC yet! Use /create_oc to create one.")
@@ -613,6 +623,7 @@ async def train(interaction: discord.Interaction):
     if not result:
         await interaction.response.send_message("You don't have an OC yet! Use /create_oc to create one.")
         cursor.close()
+        conn.close()
         return
 
     current_xp, current_level = result
@@ -628,6 +639,7 @@ async def train(interaction: discord.Interaction):
         """, (new_xp, new_level, user_id))
         conn.commit()
         cursor.close()
+        conn.close()
         await interaction.response.send_message(
             f"You trained hard and gained {gained_xp} XP! You leveled up to level {new_level}! Come back in 30 minutes to train again!"
         )
@@ -635,6 +647,7 @@ async def train(interaction: discord.Interaction):
         cursor.execute("UPDATE user_data SET xp = %s WHERE user_id = %s;", (new_xp, user_id))
         conn.commit()
         cursor.close()
+        conn.close()
         await interaction.response.send_message(
             f"You trained hard and gained {gained_xp} XP! Keep going! Come back in 30 minutes to train again!"
         )
@@ -651,6 +664,7 @@ async def leaderboard(interaction: discord.Interaction):
     """)
     top_users = cursor.fetchall()
     cursor.close()
+    conn.close()
 
     if not top_users:
         await interaction.response.send_message("No data yet! Start chatting to gain XP.")
@@ -709,6 +723,7 @@ async def buy(interaction: discord.Interaction, item_id: str):
     if not result:
         await interaction.response.send_message("You don't have an OC yet! Use /create_oc to create one.")
         cursor.close()
+        conn.close()
         return
 
     coins, inventory_json = result
@@ -717,6 +732,7 @@ async def buy(interaction: discord.Interaction, item_id: str):
     if coins < item["price"]:
         await interaction.response.send_message("❌ You don't have enough coins!")
         cursor.close()
+        conn.close()
         return
 
     coins -= item["price"]
@@ -730,6 +746,7 @@ async def buy(interaction: discord.Interaction, item_id: str):
     """, (coins, inventory_str, user_id))
     conn.commit()
     cursor.close()
+    conn.close()
 
     await interaction.response.send_message(f"✅ {interaction.user.mention} bought **{item['name']}** for {item['price']} coins!")
 
@@ -742,6 +759,7 @@ async def inventory(interaction: discord.Interaction):
     cursor.execute("SELECT inventory FROM user_data WHERE user_id = %s;", (user_id,))
     result = cursor.fetchone()
     cursor.close()
+    conn.close()
 
     if not result or not result[0]:
         await interaction.response.send_message("Your inventory is empty!")
@@ -801,6 +819,7 @@ async def on_message(message):
         conn.commit()
 
     cursor.close()
+    conn.close()
 
     await bot.process_commands(message)
 
