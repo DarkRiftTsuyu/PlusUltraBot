@@ -7,6 +7,7 @@ import os
 import random
 import json
 import psycopg2
+from psycopg2.pool import SimpleConnectionPool
 import time
 from webserver import keep_alive
 
@@ -17,9 +18,10 @@ load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+pool = SimpleConnectionPool(1, 10, DATABASE_URL, sslmode="require")
 
 def get_connection():
-    return psycopg2.connect(DATABASE_URL, sslmode="require")
+    return pool.getconn()
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 intents = discord.Intents.default()
@@ -48,7 +50,7 @@ def load_data():
         }
 
     cursor.close()
-    conn.close()
+    pool.putconn(conn)
 
     return user_data
 
@@ -79,7 +81,7 @@ def save_data(user_data):
         conn.commit()
 
     cursor.close()
-    conn.close()
+    pool.putconn(conn)
 
 def get_level(xp):
     return xp // 100 + 1
@@ -565,7 +567,7 @@ async def create_oc(interaction: discord.Interaction, name: str, quirk: str):
                 """, (user_id, name, quirk))
         conn.commit()
     finally:
-        conn.close()
+        pool.putconn(conn)
 
     if oc_exists:
         await interaction.response.send_message("You already have an OC! Use /profile to view it.")
@@ -588,7 +590,7 @@ async def profile(interaction: discord.Interaction):
             """, (user_id,))
             result = cursor.fetchone()
     finally:
-        conn.close()
+        pool.putconn(conn)
 
     if not result or result[2] is None:
         await interaction.response.send_message("You don't have an OC yet! Use /create_oc to create one.")
@@ -613,7 +615,6 @@ async def train(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     now = time.time()
 
-    # Check cooldown
     if user_id in cooldowns and now - cooldowns[user_id] < 1800:
         await interaction.response.send_message(f"{interaction.user.mention} is on cooldown for 30 minutes")
         return
@@ -649,7 +650,7 @@ async def train(interaction: discord.Interaction):
 
             conn.commit()
     finally:
-        conn.close()
+        pool.putconn(conn)
 
     if leveled_up:
         await interaction.response.send_message(
@@ -678,7 +679,7 @@ async def leaderboard(interaction: discord.Interaction):
             """)
             top_users = cursor.fetchall()
     finally:
-        conn.close()
+        pool.putconn(conn)
 
     if not top_users:
         await interaction.followup.send("No data yet! Start chatting to gain XP.")
@@ -762,7 +763,7 @@ async def buy(interaction: discord.Interaction, item_id: str):
             """, (coins, inventory_str, user_id))
             conn.commit()
     finally:
-        conn.close()
+        pool.putconn(conn)
 
     await interaction.followup.send(f"✅ {interaction.user.mention} bought **{item['name']}** for {item['price']} coins!")
 
@@ -783,7 +784,7 @@ async def inventory(interaction: discord.Interaction):
             if result and result[0]:
                 inventory_list = json.loads(result[0]) if result[0] else []
     finally:
-        conn.close()
+        pool.putconn(conn)
 
     if not inventory_list:
         await interaction.followup.send("Your inventory is empty!")
@@ -840,7 +841,7 @@ async def on_message(message):
 
         conn.commit()
     finally:
-        conn.close()
+        pool.putconn(conn)
 
     if level_up_message:
         await message.channel.send(level_up_message)
