@@ -782,14 +782,13 @@ async def buy(interaction: discord.Interaction, item_id: str):
                 return await interaction.followup.send("You don't have an OC yet! Use /create_oc to create one.")
 
             coins, inventory_json = result
-            inventory = json.loads(inventory_json) if inventory_json else []
+            inventory = inventory or []
 
             if coins < item["price"]:
                 return await interaction.followup.send("❌ You don't have enough coins!")
 
             coins -= item["price"]
             inventory.append(item["name"])
-            inventory_str = json.dumps(inventory)
 
             cursor.execute("""
                 UPDATE user_data
