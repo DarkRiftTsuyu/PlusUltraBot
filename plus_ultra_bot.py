@@ -5,6 +5,7 @@ import logging
 from dotenv import load_dotenv
 import os
 import random
+import traceback
 import json
 import psycopg2
 from psycopg2.pool import SimpleConnectionPool
@@ -797,8 +798,8 @@ async def buy(interaction: discord.Interaction, item_id: str):
             """, (coins, inventory_str, user_id))
             conn.commit()
     except Exception as e:
-        print(f"Error in buy command: {e}")
-        return await interaction.followup.send("⚠️ Something went wrong. Please try again.")
+        traceback.print_exc()
+        return await interaction.followup.send(f"⚠️ Error: `{e}`")
     finally:
         pool.putconn(conn)
 
