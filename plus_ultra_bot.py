@@ -762,34 +762,30 @@ async def shop(interaction: discord.Interaction):
 @bot.tree.command(name="buy", description="Buy an item from the shop")
 @app_commands.describe(item_id="The ID number of the item you want to buy")
 async def buy(interaction: discord.Interaction, item_id: str):
-    await interaction.response.defer(ephemeral=False)
+    await interaction.response.defer()
 
     user_id = str(interaction.user.id)
 
     if item_id not in shop_items:
-        await interaction.followup.send("❌ Invalid item ID!")
-        return
+        return await interaction.followup.send("❌ Invalid item ID!")
 
     item = shop_items[item_id]
 
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
-            cursor.execute("SELECT coins, inventory FROM user_data WHERE user_id = %s;", (user_id,))
+            cursor.execute("SELECT coins, inventory FROM user_data WHERE user_id = %s FOR UPDATE;", (user_id,))
             result = cursor.fetchone()
 
             if not result:
-                await interaction.followup.send("You don't have an OC yet! Use /create_oc to create one.")
-                return
+                return await interaction.followup.send("You don't have an OC yet! Use /create_oc to create one.")
 
             coins, inventory_json = result
             inventory = json.loads(inventory_json) if inventory_json else []
 
             if coins < item["price"]:
-                await interaction.followup.send("❌ You don't have enough coins!")
-                return
+                return await interaction.followup.send("❌ You don't have enough coins!")
 
-            # Update data
             coins -= item["price"]
             inventory.append(item["name"])
             inventory_str = json.dumps(inventory)
@@ -800,18 +796,13 @@ async def buy(interaction: discord.Interaction, item_id: str):
                 WHERE user_id = %s;
             """, (coins, inventory_str, user_id))
             conn.commit()
+    except Exception as e:
+        print(f"Error in buy command: {e}")
+        return await interaction.followup.send("⚠️ Something went wrong. Please try again.")
     finally:
         pool.putconn(conn)
 
     await interaction.followup.send(f"✅ {interaction.user.mention} bought **{item['name']}** for {item['price']} coins!")
-
-
-
-import asyncio
-import json
-import discord
-from discord import app_commands
-from discord.ext import commands
 
 @bot.tree.command(name="inventory", description="Open your inventory")
 async def inventory(interaction: discord.Interaction):
