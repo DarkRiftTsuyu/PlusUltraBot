@@ -779,13 +779,15 @@ async def buy(interaction: discord.Interaction, item_id: str):
             result = cursor.fetchone()
 
             if not result:
-                return await interaction.followup.send("You don't have an OC yet! Use /create_oc to create one.")
+                await interaction.followup.send("You don't have an OC yet! Use /create_oc to create one.")
+                return
 
-            coins, inventory_json = result
+            coins, inventory = result
             inventory = inventory or []
 
             if coins < item["price"]:
-                return await interaction.followup.send("❌ You don't have enough coins!")
+                await interaction.followup.send("❌ You don't have enough coins!")
+                return
 
             coins -= item["price"]
             inventory.append(item["name"])
@@ -794,15 +796,16 @@ async def buy(interaction: discord.Interaction, item_id: str):
                 UPDATE user_data
                 SET coins = %s, inventory = %s
                 WHERE user_id = %s;
-            """, (coins, inventory_str, user_id))
+            """, (coins, inventory, user_id))
             conn.commit()
+
+        await interaction.followup.send(f"✅ {interaction.user.mention} bought **{item['name']}** for {item['price']} coins!")
     except Exception as e:
         traceback.print_exc()
-        return await interaction.followup.send(f"⚠️ Error: `{e}`")
+        await interaction.followup.send(f"⚠️ Something went wrong: `{e}`")
     finally:
-        pool.putconn(conn)
-
-    await interaction.followup.send(f"✅ {interaction.user.mention} bought **{item['name']}** for {item['price']} coins!")
+        if conn:
+            pool.putconn(conn)
 
 @bot.tree.command(name="inventory", description="Open your inventory")
 async def inventory(interaction: discord.Interaction):
