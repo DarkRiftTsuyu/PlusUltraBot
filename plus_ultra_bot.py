@@ -5,6 +5,7 @@ import logging
 from dotenv import load_dotenv
 import os
 import random
+import asyncio
 import traceback
 import json
 import psycopg2
@@ -85,7 +86,10 @@ def save_data(user_data):
     pool.putconn(conn)
 
 def get_level(xp):
-    return xp // 100 + 1
+    return xp // 500 + 1
+
+with open("card_database.json", "r") as f:
+    packs = json.load(f)
 
 cooldowns = {}
 
@@ -792,11 +796,13 @@ async def buy(interaction: discord.Interaction, item_id: str):
             coins -= item["price"]
             inventory.append(item["name"])
 
+            inventory_json = json.dumps(inventory)
+
             cursor.execute("""
                 UPDATE user_data
                 SET coins = %s, inventory = %s
                 WHERE user_id = %s;
-            """, (coins, inventory, user_id))
+            """, (coins, inventory_json, user_id))
             conn.commit()
 
         await interaction.followup.send(f"✅ {interaction.user.mention} bought **{item['name']}** for {item['price']} coins!")
@@ -887,5 +893,145 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+def build_card_lookup(packs):
+    lookup = {}
+    for pack_name, pack_data in packs.items():
+        for rarity_name, rarity_list in pack_data.items():
+            if isinstance(rarity_list, list):
+                for card in rarity_list:
+                    lookup[card["name"]] = card
+    return lookup
+
+card_lookup = build_card_lookup(packs)
+
+@bot.tree.command(name="cards", description="View all the cards you own with images")
+async def cards(interaction: discord.Interaction):
+    import time
+
+    print("Reached cards command handler.")
+    await interaction.response.defer(ephemeral=False)
+    print("Deferred response.")
+
+    user_id = str(interaction.user.id)
+    print(f"User ID: {user_id}")
+
+    def fetch_cards():
+        print("Fetching cards from database.")
+        print("Before get_connection()")
+        conn = get_connection()
+        print("After get_connection()")
+        try:
+            with conn.cursor() as cursor:
+                print("Before execute()")
+                cursor.execute("""
+                    SELECT item_name, quantity 
+                    FROM inventory 
+                    WHERE user_id = %s AND item_type = 'card';
+                """, (user_id,))
+                print("After execute()")
+                result = cursor.fetchall()
+                print("Database query successful. Result:", result)
+                return result
+        except Exception as e:
+            print("Exception during database fetch:", e)
+            traceback.print_exc()
+            return None
+        finally:
+            print("Returning connection to pool.")
+            pool.putconn(conn)
+            print("Fetching cards from database.")
+            conn = get_connection()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT item_name, quantity 
+                        FROM inventory 
+                        WHERE user_id = %s AND item_type = 'card';
+                    """, (user_id,))
+                    result = cursor.fetchall()
+                    print("Database query successful. Result:", result)
+                    return result
+            except Exception as e:
+                print("Exception during database fetch:", e)
+                traceback.print_exc()
+                return None
+            finally:
+                print("Returning connection to pool.")
+                pool.putconn(conn)
+
+    print("Starting card fetch in thread.")
+    user_cards = await asyncio.to_thread(fetch_cards)
+    print("User cards object: ", user_cards)
+
+    if not user_cards:
+        print("No cards found. Sending empty message.")
+        await interaction.followup.send("❌ You don't own any cards yet!")
+        return
+
+    with open("card_database.json", "r") as f:
+        pack = json.load(f)
+
+    header_embed = discord.Embed(
+        title=f"🃏 **{interaction.user.display_name}'s Card Collection** 🃏",
+        description=f"Total unique cards: **{len(user_cards)}**",
+        color=discord.Color.purple()
+    )
+
+    embeds = [header_embed]
+    print("Created header embed.")
+
+    for card_name, quantity in user_cards:
+        print(f"Processing card: {card_name} (quantity: {quantity})")
+        card_data = card_lookup.get(card_name)
+
+        for pack_name, pack_data in pack.items():
+            print(f"Checking pack: {pack_name}")
+            for rarity_name, rarity_list in pack_data.items():
+                print(f"Checking rarity: {rarity_name}")
+                if isinstance(rarity_list, list):
+                    for card in rarity_list:
+                        print(f"Checking card in rarity list: {card.get('name', 'N/A')}")
+                        if card["name"] == card_name:
+                            card_data = card
+                            print(f"Found matching card data for {card_name}")
+                            break
+                    if card_data:
+                        break
+            if card_data:
+                break
+
+        if card_data:
+            print(f"Creating card embed for {card_name}")
+            card_embed = discord.Embed(
+                title=f"{card_name} ×{quantity}",
+                description=card_data["description"],
+                color=discord.Color.blue()
+            )
+            card_embed.set_image(url=card_data["image"])
+            embeds.append(card_embed)
+        else:
+            print(f"No image found for {card_name}, creating fallback embed.")
+            fallback_embed = discord.Embed(
+                title=f"{card_name} ×{quantity}",
+                description="(No image found)",
+                color=discord.Color.dark_gray()
+            )
+            embeds.append(fallback_embed)
+
+    print(f"Total embeds to send: {len(embeds)}")
+
+    batch_size = 10
+    for i in range(0, len(embeds), batch_size):
+        print(f"Sending embed batch {i // batch_size + 1}: embeds[{i}:{i+batch_size}]")
+        try:
+            await interaction.followup.send(embeds=embeds[i:i+batch_size])
+            print(f"Batch {i // batch_size + 1} sent successfully.")
+        except Exception as e:
+            print(f"Exception while sending embed batch {i // batch_size + 1}: {e}")
+            traceback.print_exc()
+            await interaction.followup.send(f"❌ Error sending embeds batch {i // batch_size + 1}: {e}")
+        time.sleep(0.5)  # Avoid rate limits
+
+    print("Finished sending all embed batches.")
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)

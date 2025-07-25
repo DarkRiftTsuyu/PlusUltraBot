@@ -1,0 +1,104 @@
+{
+    "mha_card_pack_1": {
+        "common_cards": [
+            {
+                "name": "Hanta Sero",
+                "description": "The 'Tape Hero: Cellophane', Sero uses tape from his elbows to immobilize enemies and swing across buildings.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/2rwXSeN4VB5jlNoEog5qRh/cfcee8612c7fd7e0565e7067ab5a7007/046_Hanta_Sero.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Yuga Aoyama",
+                "description": "The 'Shining Hero: Can't Stop Twinkling', Aoyama uses a naval laser to dazzle and defeat foes with elegance.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/3Iz03HOmoZCyY05KBairRY/b88bd307a3bf0b96724f3dd40c85d97f/172_Yuga_Aoyama.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Minoru Mineta",
+                "description": "The 'Fresh-Picked Hero: Grape Juice', Mineta uses sticky balls for immobilization, though he's often perverted comic relief.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/2SgQdskuflyw7gsOMwcOAZ/8bd6dd076d0b84fe13186c8f568aea89/100_Minoru_Mineta.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Nomu",
+                "description": "Engineered bioweapon with multiple quirks, Nomu serves as a terrifying enforcer for the League of Villains.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/ZKPB7BAI2VyKrlEMacl8n/e1b28bfcd05fec2e62b5f72f8799d9c9/118_Nomu.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            }
+        ],
+        "uncommon_cards": [
+            {
+                "name": "Denki Kaminari",
+                "description": "The 'Stun Gun Hero: Chargebolt', Kaminari wields electricity to paralyze enemies, though overuse will fry his brain.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/53xBTT5cbiQti7yE6Fohj2/fe91c5392776d6fd16aeb1796c505201/010_Denki_Kaminari.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Kyoka Jiro",
+                "description": "The 'Hearing Hero: Earphone Jack', Jiro uses sound-based attacks and can detect vibrations for stealth operations.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/58sR7Dom7EnxeeBkf6iQwF/e90c5a85549585f4fb7160e8bccd0252/091_Kyoka_Jiro.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Momo Yaoyorozu",
+                "description": "The 'Creation Hero: Creati', Momo can create any non-living object from her body using her Quirk, Creation and the lipids in her body.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/3VBx9ERILVYDw97fdXEjbN/e589d6e630feff0815788909678948b5/109_Momo_Yaoyorozu.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Fumikage Tokoyami",
+                "description": "The 'Jet-Black Hero: Tsukuyomi', Tokoyami controls a sentient shadow beast called 'Dark Shadow' for devastating attacks.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/4BHxcSC4beTUofAooIYSHP/b08bbe73cc4a461702b7293bf2c4c350/037_Fumikage_Tokoyami.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            }
+        ],
+        "rare_cards": [
+            {
+                "name": "Tsuyu Asui",
+                "description": "The 'Rainy Season Hero: Froppy', Asui's frog-like abilities give her versatility and mobility in combat, but please call her 'Tsu'.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/6lAWrAPOsmU2UfQwp7T0Lb/75ac4ef798060648ddfad6967be358e3/163_Tsuyu_Asui.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Eijiro Kirishima",
+                "description": "The 'Sturdy Hero: Red Riot', Kirishima hardens his body to withstand powerful attacks and protect allies.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/3LIEM7G8Pg2RnUfoF1tnI6/a46429ab07d5c9d49e497a946f53eca4/019_Eijiro_Kirishima.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Shota Aizawa",
+                "description": "The 'Erasure Hero: Eraser Head', Aizawa nullifies opponents' quirks with his eyes and immobilizes threats with his scarf.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/3YqNSwJCwJUL6CYJ45Cijo/26cc1b4b17b2d22c0e52f64b9a1dac94/028_Eraser_Head.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            }
+        ],
+        "epic_cards": [
+            {
+                "name": "Tenya Iida",
+                "description": "The 'Turbo Hero: Ingenium', Iida uses Engine-powered legs for supersonic kicks and rapid rescues.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/4t9lVc75zANtM46ZlpUk45/34d6a0baafde90f8b20a2192482110a9/145_Tenya_Iida.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Ochaco Uraraka",
+                "description": "The 'Zero Gravity Hero: Uravity', Ochaco manipulates gravity to make objects weightless for offense and mobility.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/4UpKxvgUrEqjZDSGIVBnrm/09aca94970bdec3f14bbdb1d249e0460/127_Ochaco_Uraraka.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Shoto Todoroki",
+                "description": "The 'Icy-Hot Hero: Shoto' Todoroki wields Quirk 'Half-Cold Half-Hot', freezing enemies with ice or burning them with fire for overwhelming offense.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/KpSBYnvwNrmzh5q7D3Pzk/f8cf83fb4ecdcc06ffef352fbb50865b/136_Shoto_Todoroki.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            }
+        ],
+        "legendary_cards": [
+            {
+                "name": "Izuku Midoriya",
+                "description": "The ninth wielder of One For All, Deku strives to become the greatest hero while mastering his inherited power.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/6Ur6MjGuSuUbFxcaOlwAwY/a15c82b3ab25c3f881a4b87b1dfee50a/055_Izuku_Midoriya.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Katsuki Bakugo",
+                "description": "Bakugo uses nitro-glycerin like explosive sweat to unleash devastating blasts, aiming to surpass all heroes and rivals.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/4ENW50u1YzhsD8mCp31vCw/bcc7b40f76b41d84d5eecb2252995307/073_Katsuki_Bakugo.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "Tomura Shigaraki",
+                "description": "Leader of the League of Villains, Shigaraki can disintegrate anything he touches, threatening hero society and life as we know it.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/3a206YAv2hUgSE5pKX5WB4/33dd63abe8e7670ebb538cb9c10e7b01/154_Shigaraki.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            },
+            {
+                "name": "All Might",
+                "description": "The former Symbol of Peace, All Might was the world's strongest hero and is mentor to Izuku Midoriya.",
+                "image": "https://images.ctfassets.net/qgsv4hbp414k/1Xjp2STOS4lGj1n50JSJnu/ee0be5714442b3227eee5c48c4e47e7d/001_All_Might.png?w=744&h=1039&q=50&fm=png&bg=transparent"
+            }
+        ]
+    }
+}
