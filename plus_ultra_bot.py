@@ -13,7 +13,7 @@ from psycopg2.pool import SimpleConnectionPool
 import time
 from webserver import keep_alive
 
-'''keep_alive()'''
+keep_alive()
 
 load_dotenv()
 
