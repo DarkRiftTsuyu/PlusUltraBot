@@ -4,16 +4,16 @@ from discord import app_commands
 import logging
 from dotenv import load_dotenv
 import os
-import random
 import asyncio
+import random
 import traceback
 import json
-import psycopg2
+from concurrent.futures import ThreadPoolExecutor
 from psycopg2.pool import SimpleConnectionPool
 import time
 from webserver import keep_alive
 
-keep_alive()
+'''keep_alive()'''
 
 load_dotenv()
 
@@ -25,6 +25,7 @@ pool = SimpleConnectionPool(1, 10, DATABASE_URL, sslmode="require")
 def get_connection():
     return pool.getconn()
 
+executor = ThreadPoolExecutor(max_workers=5)
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -94,6 +95,40 @@ with open("card_database.json", "r") as f:
 cooldowns = {}
 
 games = {}
+
+shop_packs = {
+    "mha_pack_1": {
+        "name": "mha_pack_1",
+        "description": "A pack containing 3 random 'MHA Card Pack 1' cards.",
+        "price": 100,
+    }
+}
+
+rarity_colors = {
+    "common_cards": discord.Color.light_gray(),
+    "uncommon_cards": discord.Color.green(),
+    "rare_cards": discord.Color.blue(),
+    "epic_cards": discord.Color.purple(),
+    "legendary_cards": discord.Color.gold()
+}
+
+rarity_emojis = {
+    "common_cards": "⚪",
+    "uncommon_cards": "🟢",
+    "rare_cards": "🔵",
+    "epic_cards": "🟣",
+    "legendary_cards": "🌟"
+}
+
+rarity_percentages = {
+    "common_cards": 70,
+    "uncommon_cards": 20,
+    "rare_cards": 7,
+    "epic_cards": 2,
+    "legendary_cards": 1
+}
+
+cards_in_pack_1 = 3
 
 shop_items = {
     "1": {"name": "Plus Ultra Badge", "price": 200, "description": "Show off your Plus Ultra Spirit!"},
@@ -267,6 +302,30 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(
         name = "/train",
         value = "Train to gain XP every 30 minutes!",
+        inline = False
+    )
+
+    embed.add_field(
+        name = "/card_pack_shop",
+        value = "Open the pack shop to buy card packs!",
+        inline = False
+    )
+
+    embed.add_field(
+        name = "/buy_pack",
+        value = "Purchase a pack from the shop",
+        inline = False
+    )
+
+    embed.add_field(
+        name = "/open",
+        value = "Open a pack you've purchased",
+        inline = False
+    )
+
+    embed.add_field(
+        name = "/cards",
+        value = "Show off the cards you own!",
         inline = False
     )
 
@@ -796,13 +855,11 @@ async def buy(interaction: discord.Interaction, item_id: str):
             coins -= item["price"]
             inventory.append(item["name"])
 
-            inventory_json = json.dumps(inventory)
-
             cursor.execute("""
                 UPDATE user_data
                 SET coins = %s, inventory = %s
                 WHERE user_id = %s;
-            """, (coins, inventory_json, user_id))
+            """, (coins, inventory, user_id))
             conn.commit()
 
         await interaction.followup.send(f"✅ {interaction.user.mention} bought **{item['name']}** for {item['price']} coins!")
@@ -836,16 +893,168 @@ async def inventory(interaction: discord.Interaction):
     if not inventory_list:
         await interaction.followup.send("Your inventory is empty!")
         return
+
     embed = discord.Embed(
         title=f"{interaction.user.display_name}'s Inventory",
         color=discord.Color.dark_teal()
     )
-    item_text = "\n".join([f"{index}. {item}" for index, item in enumerate(inventory_list, start=1)])
+
+    item_text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(inventory_list)])
+    if len(item_text) > 1024:
+        item_text = item_text[:1021] + "..."
+
     embed.add_field(name="Items", value=item_text, inline=False)
     embed.set_footer(text=f"Total items: {len(inventory_list)}")
 
     await interaction.followup.send(embed=embed)
 
+@bot.tree.command(name="open", description="Open a card pack you own.")
+@app_commands.describe(pack_name="The name of the pack to open")
+async def open_pack(interaction: discord.Interaction, pack_name: str):
+    await interaction.response.defer(ephemeral=False)
+    user_id = interaction.user.id
+    pack_key = pack_name.lower().replace(" ", "_")
+
+    print("DEBUG pack_key:", pack_key)
+    print("DEBUG keys in packs:", packs.keys())
+    print("DEBUG keys in packs[pack_key]:", packs[pack_key].keys())
+
+    if pack_key not in packs:
+        await interaction.followup.send("❌ That pack does not exist.", ephemeral=True)
+        return
+
+    def db_open_pack():
+        conn = pool.getconn()
+        try:
+            cur = conn.cursor()
+
+            cur.execute("SELECT quantity FROM inventory WHERE user_id = %s AND item_name = %s", (user_id, pack_key))
+            row = cur.fetchone()
+            if not row or row[0] <= 0:
+                return None
+
+            cur.execute("""
+                UPDATE inventory
+                SET quantity = quantity - 1
+                WHERE user_id = %s AND item_name = %s
+            """, (user_id, pack_key))
+
+            cur.execute("""
+                DELETE FROM inventory WHERE user_id = %s AND item_name = %s AND quantity <= 0
+            """, (user_id, pack_key))
+
+            pulled_cards = []
+            for _ in range(cards_in_pack_1):
+                rarity = random.choices(list(rarity_percentages.keys()), weights=rarity_percentages.values())[0]
+                print(f"DEBUG: picking rarity {rarity}")
+                card = random.choice(packs[pack_key][rarity])
+                card["rarity"] = rarity
+                pulled_cards.append(card)
+
+                cur.execute("""
+                    INSERT INTO inventory (user_id, item_name, quantity, item_type)
+                    VALUES (%s, %s, 1, 'card')
+                    ON CONFLICT (user_id, item_name)
+                    DO UPDATE SET quantity = inventory.quantity + 1
+                """, (user_id, card["name"]))
+
+            conn.commit()
+            return pulled_cards
+        finally:
+            pool.putconn(conn)
+
+    pulled_cards = await interaction.client.loop.run_in_executor(executor, db_open_pack)
+
+    if pulled_cards is None:
+        await interaction.followup.send("❌ You don't own this pack.", ephemeral=True)
+        return
+
+    main_embed = discord.Embed(
+        title=f"📦 You opened {pack_name}! 📦",
+        description="Here are your cards:",
+        color=discord.Color.gold()
+    )
+    main_embed.set_footer(text="Cards have been added to your inventory.")
+    await interaction.followup.send(embed=main_embed)
+
+    for card in pulled_cards:
+        rarity = card["rarity"]
+        emoji = rarity_emojis.get(rarity, "")
+        color = rarity_colors.get(rarity, discord.Color.default())
+
+        card_embed = discord.Embed(
+            title=f"{emoji} {card['name']} ({rarity.replace('_cards','').capitalize()})",
+            description=card["description"],
+            color=color
+        )
+        card_embed.set_image(url=card["image"])
+        await interaction.followup.send(embed=card_embed)
+
+@bot.tree.command(name="cards", description="View all the cards you own with images")
+async def cards(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
+    user_id = str(interaction.user.id)
+
+    def fetch_cards():
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT item_name, quantity 
+                    FROM inventory 
+                    WHERE user_id = %s AND item_type = 'card';
+                """, (user_id,))
+                return cursor.fetchall() or []
+        finally:
+            pool.putconn(conn)
+
+    user_cards = await asyncio.to_thread(fetch_cards)
+
+    if not user_cards:
+        await interaction.followup.send("❌ You don't own any cards yet!")
+        return
+
+    header_embed = discord.Embed(
+        title=f"🃏 **{interaction.user.display_name}'s Card Collection** 🃏",
+        description=f"Total unique cards: **{len(user_cards)}**",
+        color=discord.Color.purple()
+    )
+
+    embeds = [header_embed]
+
+    for card_name, quantity in user_cards:
+        card_data = None
+        for pack in packs.values():
+            for rarity_list in pack.values():
+                if isinstance(rarity_list, list):
+                    for card in rarity_list:
+                        if card["name"] == card_name:
+                            card_data = card
+                            break
+                    if card_data:
+                        break
+            if card_data:
+                break
+
+        if card_data:
+            card_embed = discord.Embed(
+                title=f"{card_name} ×{quantity}",
+                description=card_data["description"],
+                color=discord.Color.blue()
+            )
+            card_embed.set_image(url=card_data["image"])
+            embeds.append(card_embed)
+        else:
+            fallback_embed = discord.Embed(
+                title=f"{card_name} ×{quantity}",
+                description="(No image found)",
+                color=discord.Color.dark_gray()
+            )
+            embeds.append(fallback_embed)
+
+    await interaction.followup.send(embed=embeds[0])
+    for embed in embeds[1:]:
+        await interaction.followup.send(embed=embed)
 
 
 @bot.event
@@ -891,147 +1100,83 @@ async def on_message(message):
     if level_up_message:
         await message.channel.send(level_up_message)
 
-    await bot.process_commands(message)
-
-def build_card_lookup(packs):
-    lookup = {}
-    for pack_name, pack_data in packs.items():
-        for rarity_name, rarity_list in pack_data.items():
-            if isinstance(rarity_list, list):
-                for card in rarity_list:
-                    lookup[card["name"]] = card
-    return lookup
-
-card_lookup = build_card_lookup(packs)
-
-@bot.tree.command(name="cards", description="View all the cards you own with images")
-async def cards(interaction: discord.Interaction):
-    import time
-
-    print("Reached cards command handler.")
+@bot.tree.command(name="card_pack_shop", description="View all available card packs in the shop.")
+async def card_pack_shop(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=False)
-    print("Deferred response.")
 
-    user_id = str(interaction.user.id)
-    print(f"User ID: {user_id}")
-
-    def fetch_cards():
-        print("Fetching cards from database.")
-        print("Before get_connection()")
-        conn = get_connection()
-        print("After get_connection()")
-        try:
-            with conn.cursor() as cursor:
-                print("Before execute()")
-                cursor.execute("""
-                    SELECT item_name, quantity 
-                    FROM inventory 
-                    WHERE user_id = %s AND item_type = 'card';
-                """, (user_id,))
-                print("After execute()")
-                result = cursor.fetchall()
-                print("Database query successful. Result:", result)
-                return result
-        except Exception as e:
-            print("Exception during database fetch:", e)
-            traceback.print_exc()
-            return None
-        finally:
-            print("Returning connection to pool.")
-            pool.putconn(conn)
-            print("Fetching cards from database.")
-            conn = get_connection()
-            try:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT item_name, quantity 
-                        FROM inventory 
-                        WHERE user_id = %s AND item_type = 'card';
-                    """, (user_id,))
-                    result = cursor.fetchall()
-                    print("Database query successful. Result:", result)
-                    return result
-            except Exception as e:
-                print("Exception during database fetch:", e)
-                traceback.print_exc()
-                return None
-            finally:
-                print("Returning connection to pool.")
-                pool.putconn(conn)
-
-    print("Starting card fetch in thread.")
-    user_cards = await asyncio.to_thread(fetch_cards)
-    print("User cards object: ", user_cards)
-
-    if not user_cards:
-        print("No cards found. Sending empty message.")
-        await interaction.followup.send("❌ You don't own any cards yet!")
-        return
-
-    with open("card_database.json", "r") as f:
-        pack = json.load(f)
+    embeds = []
 
     header_embed = discord.Embed(
-        title=f"🃏 **{interaction.user.display_name}'s Card Collection** 🃏",
-        description=f"Total unique cards: **{len(user_cards)}**",
-        color=discord.Color.purple()
+        title="🛒 **Card Pack Shop** 🛒",
+        description="Here are the packs you can buy using `/buy <pack_name>`",
+        color=discord.Color.gold()
+    )
+    embeds.append(header_embed)
+
+    for pack_key, pack_data in shop_packs.items():
+        embed = discord.Embed(
+            title=f"📦 {pack_data['name']}",
+            description=pack_data["description"],
+            color=discord.Color.green()
+        )
+        embed.add_field(name="💰 Price", value=f"{pack_data['price']} coins", inline=True)
+        embed.add_field(name="🛍 Command", value=f"`/buy_pack {pack_key}`", inline=True)
+
+        embeds.append(embed)
+
+    await interaction.followup.send(embed=embeds[0])
+    for embed in embeds[1:]:
+        await interaction.followup.send(embed=embed)
+
+@bot.tree.command(name="buy_pack", description="Buy a card pack from the shop")
+@app_commands.describe(pack_name="The name of the pack you want to buy")
+async def buy_pack(interaction: discord.Interaction, pack_name: str):
+    await interaction.response.defer(ephemeral=False)
+
+    user_id = str(interaction.user.id)
+    pack_key = pack_name.lower().replace(" ", "_")
+
+    if pack_key not in shop_packs:
+        await interaction.followup.send("❌ That pack does not exist in the shop!")
+        return
+
+    pack = shop_packs[pack_key]
+    pack_price = pack["price"]
+
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT coins FROM user_data WHERE user_id = %s;", (user_id,))
+            result = cursor.fetchone()
+
+            if not result:
+                await interaction.followup.send("❌ You don't have an OC yet! Use /create_oc to create one.")
+                return
+
+            coins = result[0]
+
+            if coins < pack_price:
+                await interaction.followup.send("❌ You don't have enough coins to buy this pack!")
+                return
+
+            new_coins = coins - pack_price
+            cursor.execute("UPDATE user_data SET coins = %s WHERE user_id = %s;", (new_coins, user_id))
+
+            cursor.execute("""
+                INSERT INTO inventory (user_id, item_name, quantity, item_type)
+                VALUES (%s, %s, 1, 'pack')
+                ON CONFLICT (user_id, item_name)
+                DO UPDATE SET quantity = inventory.quantity + 1;
+            """, (user_id, pack['name']))
+
+            conn.commit()
+
+    finally:
+        pool.putconn(conn)
+
+    await interaction.followup.send(
+        f"✅ {interaction.user.mention} bought **{pack['name']}** for {pack_price} coins!"
     )
 
-    embeds = [header_embed]
-    print("Created header embed.")
-
-    for card_name, quantity in user_cards:
-        print(f"Processing card: {card_name} (quantity: {quantity})")
-        card_data = card_lookup.get(card_name)
-
-        for pack_name, pack_data in pack.items():
-            print(f"Checking pack: {pack_name}")
-            for rarity_name, rarity_list in pack_data.items():
-                print(f"Checking rarity: {rarity_name}")
-                if isinstance(rarity_list, list):
-                    for card in rarity_list:
-                        print(f"Checking card in rarity list: {card.get('name', 'N/A')}")
-                        if card["name"] == card_name:
-                            card_data = card
-                            print(f"Found matching card data for {card_name}")
-                            break
-                    if card_data:
-                        break
-            if card_data:
-                break
-
-        if card_data:
-            print(f"Creating card embed for {card_name}")
-            card_embed = discord.Embed(
-                title=f"{card_name} ×{quantity}",
-                description=card_data["description"],
-                color=discord.Color.blue()
-            )
-            card_embed.set_image(url=card_data["image"])
-            embeds.append(card_embed)
-        else:
-            print(f"No image found for {card_name}, creating fallback embed.")
-            fallback_embed = discord.Embed(
-                title=f"{card_name} ×{quantity}",
-                description="(No image found)",
-                color=discord.Color.dark_gray()
-            )
-            embeds.append(fallback_embed)
-
-    print(f"Total embeds to send: {len(embeds)}")
-
-    batch_size = 10
-    for i in range(0, len(embeds), batch_size):
-        print(f"Sending embed batch {i // batch_size + 1}: embeds[{i}:{i+batch_size}]")
-        try:
-            await interaction.followup.send(embeds=embeds[i:i+batch_size])
-            print(f"Batch {i // batch_size + 1} sent successfully.")
-        except Exception as e:
-            print(f"Exception while sending embed batch {i // batch_size + 1}: {e}")
-            traceback.print_exc()
-            await interaction.followup.send(f"❌ Error sending embeds batch {i // batch_size + 1}: {e}")
-        time.sleep(0.5)  # Avoid rate limits
-
-    print("Finished sending all embed batches.")
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
